@@ -1,38 +1,54 @@
-print(">>> Python 脚本启动成功，正在初始化...", flush=True)
-
 import time
-import requests
+import logging
+from src.auth import BilibiliAuth
+from src.dynamic_fetcher import DynamicFetcher
+from src.like_manager import LikeManager
 
-class BilibiliAutoLiker:
-    def __init__(self, user_id, access_token):
-        self.user_id = user_id
-        self.access_token = access_token
+# 配置日志，确保 GitHub Actions 能实时看到输出
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
-    def get_latest_dynamics(self):
-        url = f'https://api.bilibili.com/x/space/dynamic/{self.user_id}'
-        headers = {'Authorization': f'Bearer {self.access_token}'}
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return response.json()['data']['cards']
-        return None
+def main():
+    print(">>> Python 脚本启动成功，正在初始化...", flush=True)
 
-    def like_post(self, dynamic_id):
-        like_url = 'https://api.bilibili.com/x/v2/dm/like'
-        payload = {'dynamic_id': dynamic_id, 'type': 1}
-        headers = {'Authorization': f'Bearer {self.access_token}'}
-        requests.post(like_url, headers=headers, json=payload)
+    # 1. 初始化认证（自动读取 cookies.json）
+    auth = BilibiliAuth(cookies_file='cookies.json')
+    
+    if not auth.is_logged_in():
+        logger.error("❌ 登录失败：cookies.json 无效或未填充。请检查 GitHub Secrets 配置。")
+        return
 
-    def auto_like(self):
-        while True:
-            dynamics = self.get_latest_dynamics()
-            if dynamics:
-                for card in dynamics[:20]:
-                    dynamic_id = card['item']['id']
-                    self.like_post(dynamic_id)
-            time.sleep(3600)
+    # 2. 获取用户信息（验证 Cookie 是否真的有效）
+    user_info = auth.get_user_info()
+    if user_info:
+        logger.info(f"✅ 登录成功！用户名: {user_info.get('uname')} (UID: {user_info.get('mid')})")
+    else:
+        logger.error("❌ Cookie 已失效，请更新 SESSDATA 等配置。")
+        return
+
+    # 3. 初始化功能组件
+    fetcher = DynamicFetcher(auth)
+    liker = LikeManager(auth)
+
+    # 4. 执行一次点赞任务（不使用 while True，因为 GitHub Actions 本身有定时触发）
+    logger.info("开始获取最新动态...")
+    dynamics = fetcher.get_following_dynamics(limit=10)
+    
+    if not dynamics:
+        logger.info("止步：没有发现新动态或获取失败。")
+        return
+
+    for dyn in dynamics:
+        dyn_id = dyn.get('id')
+        liker.like_dynamic(dyn_id)
+        # 稍微延迟防止触发风控
+        time.sleep(2)
+
+    logger.info("🎉 本轮自动点赞任务执行完毕。")
 
 if __name__ == '__main__':
-    USER_ID = 'your_user_id'
-    ACCESS_TOKEN = 'your_access_token'
-    auto_liker = BilibiliAutoLiker(USER_ID, ACCESS_TOKEN)
-    auto_liker.auto_like()
+    main()
