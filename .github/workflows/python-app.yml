@@ -43,4 +43,7 @@ jobs:
       env:
         PYTHONUNBUFFERED: 1
       run: |
-        python main.py
+        # 使用 -i 参数在出错时进入交互模式（或看到更底层的报错）
+        # 并在执行前打印当前路径下的文件
+        ls -l
+        python main.py 2>&1 | tee output.log
