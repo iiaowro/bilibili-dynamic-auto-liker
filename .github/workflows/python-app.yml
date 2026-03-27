@@ -41,5 +41,7 @@ jobs:
         echo "--- 填充后的 cookies.json 内容如下 ---"
         cat cookies.json
     - name: run app
+      env:
+        PYTHONUNBUFFERED: 1
       run: |
-        python main.py 
+        python main.py
