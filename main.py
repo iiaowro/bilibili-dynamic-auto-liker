@@ -1,3 +1,5 @@
+print(">>> Python 脚本启动成功，正在初始化...", flush=True)
+
 import time
 import requests
 
