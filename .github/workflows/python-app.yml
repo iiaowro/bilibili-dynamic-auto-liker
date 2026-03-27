@@ -24,18 +24,22 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
-    - name: 填充 Cookies 到 JSON
+    - name: 填充并验证 Cookies JSON
       env:
         SESSDATA: ${{ secrets.SESSDATA }}
         BILI_JCT: ${{ secrets.bili_jct }}
-        DEDE_USER_ID: ${{ secrets.DedeUserID }}
+        DEDEUSERID: ${{ secrets.DedeUserID }}
       run: |
-        # 直接使用 jq 生成全新的 JSON 对象并覆盖原文件
+        # 1. 执行替换并写回原文件
         jq -n \
           --arg sd "$SESSDATA" \
           --arg bj "$BILI_JCT" \
-          --arg du "$DEDE_USER_ID" \
+          --arg du "$DEDEUSERID" \
           '{SESSDATA: $sd, bili_jct: $bj, DedeUserID: $du}' > cookies.json
+        
+        # 2. 打印文件内容以便在 GitHub Actions 日志中确认
+        echo "--- 填充后的 cookies.json 内容如下 ---"
+        cat cookies.json
     - name: run app
       run: |
         python main.py 
