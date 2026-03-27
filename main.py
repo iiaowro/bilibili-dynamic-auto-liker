@@ -36,7 +36,7 @@ def main():
 
     # 4. 执行一次点赞任务（不使用 while True，因为 GitHub Actions 本身有定时触发）
     logger.info("开始获取最新动态...")
-    dynamics = fetcher.get_following_dynamics(limit=10)
+    dynamics = fetcher.get_following_dynamics(limit=20)
     
     if not dynamics:
         logger.info("止步：没有发现新动态或获取失败。")
