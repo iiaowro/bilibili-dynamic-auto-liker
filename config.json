@@ -1,0 +1,1 @@
+{"check_interval": 3600, "dynamics_limit": 20, "max_retries": 3, "timeout": 10, "log_level": "INFO"}
