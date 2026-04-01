@@ -1,34 +1,37 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-
 name: Python application
 
 on:
-  # 定时触发 - 每隔一小时触发一次 
   schedule:
-    - cron: '0 * * * *' 
+    - cron: '53 * * * *' 
   workflow_dispatch:
-
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1 # 优化点 1：只拉取最新的一次提交
+
     - name: Set up Python 3.12
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5 # 优化点 2：升级到 v5
       with:
         python-version: "3.12"
+        cache: 'pip' # 优化点 3：开启自动 pip 缓存
+
     - name: Install dependencies
       run: |
+        # 缓存命中后，此步骤将极快完成
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
+
     - name: 填充并验证 Cookies JSON
       env:
         SESSDATA: ${{ secrets.SESSDATA }}
         BILI_JCT: ${{ secrets.bili_jct }}
         DEDEUSERID: ${{ secrets.DedeUserID }}
       run: |
-        # 1. 执行替换并写回原文件
         jq -n \
           --arg sd "$SESSDATA" \
           --arg bj "$BILI_JCT" \
@@ -36,5 +39,7 @@ jobs:
           '{SESSDATA: $sd, bili_jct: $bj, DedeUserID: $du}' > cookies.json
 
     - name: run app
+      env:
+        PYTHONUNBUFFERED: 1
       run: |
-        python main.py 
+        python main.py
