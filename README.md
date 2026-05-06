@@ -49,5 +49,4 @@ Contributions are welcome! Please submit a pull request or open an issue if you'
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
 
-## Contact
-For any inquiries, please contact [iiaowro](mailto:iiaowro@example.com).
+ 
