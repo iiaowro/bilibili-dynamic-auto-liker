@@ -45,7 +45,7 @@ python main.py
 
 ## Contributing
 Contributions are welcome! Please submit a pull request or open an issue if you'd like to contribute.
-
+   
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
 
