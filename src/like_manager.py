@@ -27,7 +27,17 @@ class LikeManager:
         """
         for attempt in range(self.max_retries):
             try:
-                url = f'{self.base_url}/x/dynamic/feed/dyn/thumb?csrf=b1f2000721577301804c96f4899aa23f'
+                # 1. 获取当前登录用户的 cookies
+                cookies = self.auth.get_cookies()
+                
+                # 2. 动态从 cookies 中提取 csrf token (即 bili_jct 字段)
+                csrf = cookies.get('bili_jct', '')
+                if not csrf:
+                    logger.error('✗ 未在 Cookie 中找到 bili_jct，请检查登录状态或重新登录')
+                    return False
+
+                # 3. 将动态获取到的 csrf 拼接到 URL 中
+                url = f'{self.base_url}/x/dynamic/feed/dyn/thumb?csrf={csrf}'
 
                 headers = {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0',
@@ -38,9 +48,7 @@ class LikeManager:
                     'Accept-Language': 'zh-CN,zh;q=0.9'
                 }
 
-                cookies = self.auth.get_cookies()
-
-                # 关键：使用 JSON 格式发送数据，up=2 表示点赞
+                # 使用 JSON 格式发送数据，up=1 表示点赞
                 data = {
                     'dyn_id_str': dynamic_id,
                     'up': 1
