@@ -2,10 +2,9 @@
 import requests
 import logging
 import time
-from typing import Optional
+import random
 
 logger = logging.getLogger(__name__)
-
 
 class LikeManager:
     """B站点赞管理类"""
@@ -14,57 +13,39 @@ class LikeManager:
         self.auth = auth
         self.base_url = 'https://api.bilibili.com'
         self.max_retries = 3
-        self.retry_delay = 2
+        self.retry_delay = 3
 
     def like_dynamic(self, dynamic_id: str) -> bool:
-        """点赞动态
-
-        Args:
-            dynamic_id: 动态 ID
-
-        Returns:
-            是否点赞成功
-        """
+        """点赞动态"""
         for attempt in range(self.max_retries):
             try:
-                # 1. 获取当前登录用户的 cookies
                 cookies = self.auth.get_cookies()
-                
-                # 2. 动态从 cookies 中提取 csrf token (即 bili_jct 字段)
                 csrf = cookies.get('bili_jct', '')
+                
                 if not csrf:
-                    logger.error('✗ 未在 Cookie 中找到 bili_jct，请检查登录状态或重新登录')
+                    logger.error('✗ 未能提取到 csrf (bili_jct)，请检查环境变量是否正确填写')
                     return False
 
-                # 3. 将动态获取到的 csrf 拼接到 URL 中
-                url = f'{self.base_url}/x/dynamic/feed/dyn/thumb?csrf={csrf}'
+                url = f'{self.base_url}/x/dynamic/feed/dyn/thumb'
 
                 headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Referer': 'https://t.bilibili.com/?tab=all',
                     'Origin': 'https://t.bilibili.com',
-                    'Content-Type': 'application/json',
-                    'Accept': '*/*',
+                    'Content-Type': 'application/x-www-form-urlencoded',  # 必须以表单格式提交
+                    'Accept': 'application/json, text/plain, */*',
                     'Accept-Language': 'zh-CN,zh;q=0.9'
                 }
 
-                # 使用 JSON 格式发送数据，up=1 表示点赞
+                # 必须将 csrf 作为表单体的一部分发送
                 data = {
                     'dyn_id_str': dynamic_id,
-                    'up': 1
+                    'up': 1,
+                    'csrf': csrf
                 }
 
                 logger.info(f'尝试点赞动态: {dynamic_id}')
-
-                response = requests.post(
-                    url,
-                    headers=headers,
-                    json=data,
-                    cookies=cookies,
-                    timeout=10
-                )
-
-                logger.info(f'点赞响应状态码: {response.status_code}')
+                response = requests.post(url, headers=headers, data=data, cookies=cookies, timeout=10)
 
                 if response.status_code == 200:
                     result = response.json()
@@ -75,21 +56,23 @@ class LikeManager:
                         logger.info(f'✓ 动态 {dynamic_id} 点赞成功')
                         return True
                     elif code == 65006:
-                        logger.info(f'⚠ 动态 {dynamic_id} 已点过赞，跳过')
-                        return True  # 视为成功（已赞过）
+                        logger.info(f'⚠ 动态 {dynamic_id} 之前已点过赞，跳过')
+                        return True  
+                    elif code == -101:
+                        logger.error('✗ 账号未登录，或当前环境变量中的 Cookie 已被风控强制下线')
+                        return False
                     else:
-                        logger.warning(f'API 返回错误 (code={code}): {message}')
+                        logger.warning(f'API 返回异常 (code={code}): {message}')
                 else:
                     logger.warning(f'HTTP 错误: {response.status_code}')
-                    logger.debug(f'响应内容: {response.text}')
 
             except Exception as e:
                 logger.warning(f'点赞异常 (尝试 {attempt + 1}/{self.max_retries}): {e}')
 
-            # 如果不是最后一次尝试，等待后重试
             if attempt < self.max_retries - 1:
-                logger.info(f'等待 {self.retry_delay} 秒后重试...')
-                time.sleep(self.retry_delay)
+                actual_delay = self.retry_delay + random.uniform(0.5, 2.5)
+                logger.info(f'等待 {actual_delay:.1f} 秒后重试...')
+                time.sleep(actual_delay)
 
         logger.error(f'✗ 动态 {dynamic_id} 点赞失败')
         return False
