@@ -22,24 +22,16 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # 缓存命中后，此步骤将极快完成
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-
-    - name: 填充并验证 Cookies JSON
-      env:
-        SESSDATA: ${{ secrets.SESSDATA }}
-        BILI_JCT: ${{ secrets.bili_jct }}
-        DEDEUSERID: ${{ secrets.DedeUserID }}
-      run: |
-        jq -n \
-          --arg sd "$SESSDATA" \
-          --arg bj "$BILI_JCT" \
-          --arg du "$DEDEUSERID" \
-          '{SESSDATA: $sd, bili_jct: $bj, DedeUserID: $du}' > cookies.json
 
     - name: run app
       env:
         PYTHONUNBUFFERED: 1
+        # 【核心修复】直接在这里将 GitHub Secrets 注入为系统环境变量
+        # 注意：请确保你在 GitHub 网页端设置的 Secret 名字也是这样全大写的
+        SESSDATA: ${{ secrets.SESSDATA }}
+        BILI_JCT: ${{ secrets.BILI_JCT }}
+        DEDEUSERID: ${{ secrets.DEDEUSERID }}
       run: |
         python main.py
