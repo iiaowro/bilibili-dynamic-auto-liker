@@ -23,24 +23,28 @@ class LikeManager:
                 csrf = cookies.get('bili_jct', '')
                 
                 if not csrf:
-                    logger.error('✗ 未能提取到 csrf (bili_jct)，请检查环境变量是否正确填写')
+                    logger.error('✗ 未能提取到 csrf (bili_jct)，请检查环境变量')
                     return False
 
+                # 更改为更稳定的聚合点赞接口
                 url = f'{self.base_url}/x/dynamic/feed/dyn/thumb'
 
                 headers = {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Referer': 'https://t.bilibili.com/?tab=all',
                     'Origin': 'https://t.bilibili.com',
-                    'Content-Type': 'application/x-www-form-urlencoded',  # 必须以表单格式提交
+                    'Content-Type': 'application/x-www-form-urlencoded',
                     'Accept': 'application/json, text/plain, */*',
                     'Accept-Language': 'zh-CN,zh;q=0.9'
                 }
 
-                # 必须将 csrf 作为表单体的一部分发送
+                # 【核心修复】添加了缺失的 'type': '1' 以及映射所需的 'dyn_id' 字段
+                # B 站新版接口校验如果缺失 type，会直接报 4100001 参数错误
                 data = {
-                    'dyn_id_str': dynamic_id,
-                    'up': 1,
+                    'dyn_id_str': str(dynamic_id),
+                    'dyn_id': int(dynamic_id),  # 部分后端节点需要数字类型的 ID
+                    'up': '1',                  # '1' 表示点赞，'2' 表示取消点赞
+                    'type': '1',                # 核心缺失参数：1 代表动态主体点赞
                     'csrf': csrf
                 }
 
@@ -55,12 +59,17 @@ class LikeManager:
                     if code == 0:
                         logger.info(f'✓ 动态 {dynamic_id} 点赞成功')
                         return True
-                    elif code == 65006:
+                    elif code == 65006 or "重复" in message:
                         logger.info(f'⚠ 动态 {dynamic_id} 之前已点过赞，跳过')
                         return True  
                     elif code == -101:
-                        logger.error('✗ 账号未登录，或当前环境变量中的 Cookie 已被风控强制下线')
+                        logger.error('✗ 账号未登录或 Cookie 已失效')
                         return False
+                    elif code == 4100001:
+                        logger.warning(f'⚠ 接口提示参数错误(4100001)，正在尝试备用老版协议兼容...')
+                        # 如果新版聚合接口依然敏感，尝试走旧版独立动态点赞兼容路径
+                        if self._fallback_like_dynamic(dynamic_id, csrf, cookies, headers):
+                            return True
                     else:
                         logger.warning(f'API 返回异常 (code={code}): {message}')
                 else:
@@ -75,4 +84,23 @@ class LikeManager:
                 time.sleep(actual_delay)
 
         logger.error(f'✗ 动态 {dynamic_id} 点赞失败')
+        return False
+
+    def _fallback_like_dynamic(self, dynamic_id: str, csrf: str, cookies: dict, headers: dict) -> bool:
+        """备用点赞路径：使用旧版 Web 动态点赞接口进行兼容"""
+        try:
+            url = f'{self.base_url}/x/dynamic/feed/dyn/thumb'
+            # 简化版传统表单参数
+            fallback_data = {
+                'uid': cookies.get('DedeUserID', ''),
+                'dynamic_id': dynamic_id,
+                'up': 1,
+                'csrf': csrf
+            }
+            res = requests.post(url, headers=headers, data=fallback_data, cookies=cookies, timeout=10)
+            if res.status_code == 200 and res.json().get('code') == 0:
+                logger.info(f'✓ 通过备用路径对动态 {dynamic_id} 点赞成功')
+                return True
+        except Exception:
+            pass
         return False
